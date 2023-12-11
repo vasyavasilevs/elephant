@@ -2,10 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
-#include <omp.h>
 #include <time.h>
 
-// #define NUM_THREADS 2
 #define TAG_SIZE 16
 #define BLOCK_SIZE 25
 #define ELEPHANT_NUMBER_OF_BYTES 64
@@ -27,13 +25,12 @@ const BYTE kessak_round_constants[MAX_NUMBER_OF_KESSAK_ROUNDS] = {
 
 // Kessak part start___________________________________________________________________________________________________________
 
-void theta(BYTE *TRIAL_ARR)
-{
+void 
+theta(BYTE *TRIAL_ARR) {
     unsigned int a, b;
     BYTE ARR[5], ARR2[5];
 
-    for (a = 0; a < 5; a++)
-    {
+    for (a = 0; a < 5; a++) {
         ARR[a] = 0;
         for (b = 0; b < 5; b++)
             ARR[a] ^= TRIAL_ARR[index(a, b)];
@@ -47,15 +44,15 @@ void theta(BYTE *TRIAL_ARR)
             TRIAL_ARR[index(a, b)] ^= ARR2[a];
 }
 
-void rho(BYTE *TRIAL_ARR)
-{
+void 
+rho(BYTE *TRIAL_ARR) {
     for (unsigned int a = 0; a < 5; a++)
         for (unsigned int b = 0; b < 5; b++)
             TRIAL_ARR[index(a, b)] = ROTATE_LEFT_8_BIT(TRIAL_ARR[index(a, b)], kessak_rho_offsets[index(a, b)]);
 }
 
-void pi(BYTE *TRIAL_ARR)
-{
+void 
+pi(BYTE *TRIAL_ARR) {
     BYTE fix_mask[25];
 
     for (unsigned int a = 0; a < 5; a++)
@@ -67,13 +64,12 @@ void pi(BYTE *TRIAL_ARR)
             TRIAL_ARR[index(0 * a + 1 * b, 2 * a + 3 * b)] = fix_mask[index(a, b)];
 }
 
-void hi(BYTE *TRIAL_ARR)
-{
+void 
+hi(BYTE *TRIAL_ARR) {
     unsigned int a, b;
     BYTE ARR[5];
 
-    for (b = 0; b < 5; b++)
-    {
+    for (b = 0; b < 5; b++) {
         for (a = 0; a < 5; a++)
             ARR[a] = TRIAL_ARR[index(a, b)] ^ ((~TRIAL_ARR[index(a + 1, b)]) & TRIAL_ARR[index(a + 2, b)]);
         for (a = 0; a < 5; a++)
@@ -81,13 +77,13 @@ void hi(BYTE *TRIAL_ARR)
     }
 }
 
-void io(BYTE *TRIAL_ARR, unsigned int ind)
-{
+void 
+io(BYTE *TRIAL_ARR, unsigned int ind) {
     TRIAL_ARR[index(0, 0)] ^= kessak_round_constants[ind];
 }
 
-void Kessak200UnionForOneRound(BYTE *tmp_state, unsigned int tmp_round_idx)
-{
+void 
+Kessak200UnionForOneRound(BYTE *tmp_state, unsigned int tmp_round_idx) {
     theta(tmp_state);
     rho(tmp_state);
     pi(tmp_state);
@@ -96,8 +92,8 @@ void Kessak200UnionForOneRound(BYTE *tmp_state, unsigned int tmp_round_idx)
 }
 
 // The main function that applies a sequence of rounds (Kessak200UnionForOneRound) to complete one iteration of the KeccakP-200 algorithm
-void permutation(BYTE *param)
-{
+void 
+permutation(BYTE *param) {
     for (unsigned int t = 0; t < MAX_NUMBER_OF_KESSAK_ROUNDS; t++)
         Kessak200UnionForOneRound(param, t);
 }
@@ -107,37 +103,31 @@ void permutation(BYTE *param)
 // Utils part start__________________________________________________________________________________________________________
 
 // Left shift of byte
-BYTE LeftShift(BYTE byte)
-{
+BYTE 
+LeftShift(BYTE byte) {
     return (byte << 1) | (byte >> 7);
 }
 
 // Cmp function compares two blocks of data byte by byte and returns 0 if the blocks are identical, and 1 otherwise
-int cmp(const BYTE *a, const BYTE *b, LEN length)
-{
+int 
+cmp(const BYTE *a, const BYTE *b, LEN length) {
     BYTE r = 0;
-    // omp_set_num_threads(NUM_THREADS);
-    // #pragma omp parallel for
     for (LEN i = 0; i < length; ++i)
         r |= a[i] ^ b[i];
     return r;
 }
 
 // Implements a single step linear feedback shifter (LFSR). Used to generate a mask for data encryption
-void lfsr(BYTE *out, BYTE *in)
-{
+void 
+lfsr(BYTE *out, BYTE *in) {
     BYTE cur = LeftShift(in[0]) ^ LeftShift(in[2]) ^ (in[13] << 1);
-    // omp_set_num_threads(NUM_THREADS);
-    // #pragma omp parallel for
     for (LEN t = 0; t < BLOCK_SIZE - 1; ++t)
         out[t] = in[t + 1];
     out[BLOCK_SIZE - 1] = cur;
 }
 
-void xorOfBlock(BYTE *tmp_state, const BYTE *block, LEN length)
-{
-    // omp_set_num_threads(NUM_THREADS);
-    // #pragma omp parallel for
+void 
+xorOfBlock(BYTE *tmp_state, const BYTE *block, LEN length) {
     for (LEN t = 0; t < length; ++t)
         tmp_state[t] ^= block[t];
 }
@@ -158,22 +148,20 @@ void xorOfBlock(BYTE *tmp_state, const BYTE *block, LEN length)
 // This may be necessary to ensure correct data alignment or to perform additional
 // algorithm steps depending on the length of the input data
 
-void get_associated_data_block(BYTE *out, const BYTE *aData, LEN len_aData, const BYTE *nonce, LEN t)
-{
+void 
+get_associated_data_block(BYTE *out, const BYTE *aData, LEN len_aData, const BYTE *nonce, LEN t) {
     const LEN offset = t * BLOCK_SIZE - (t != 0) * NONCE_NUM_BYTES;
     LEN len = 0;
 
     // First block contains nonce
     // Remark: nonce may not be longer then BLOCK_SIZE
-    if (t == 0)
-    {
+    if (t == 0){
         memcpy(out, nonce, NONCE_NUM_BYTES);
         len += NONCE_NUM_BYTES;
     }
 
     // If len_aData is divisible by BLOCK_SIZE, add an additional padding block
-    if (t != 0 && offset == len_aData)
-    {
+    if (t != 0 && offset == len_aData) {
         memset(out, 0x00, BLOCK_SIZE);
         out[0] = 0x01;
         return;
@@ -182,12 +170,10 @@ void get_associated_data_block(BYTE *out, const BYTE *aData, LEN len_aData, cons
     const LEN r_data = len_aData - offset;
 
     // Fill with associated data if available
-    if (r_out <= r_data)
-    { // enough AD
+    if (r_out <= r_data) { // enough AD
         memcpy(out + len, aData + offset, r_out);
     }
-    else
-    {                   // not enough AD, need to pad
+    else {              // not enough AD, need to pad
         if (r_data > 0) // ad might be nullptr
             memcpy(out + len, aData + offset, r_data);
         memset(out + len + r_data, 0x00, r_out - r_data);
@@ -195,26 +181,22 @@ void get_associated_data_block(BYTE *out, const BYTE *aData, LEN len_aData, cons
     }
 }
 
-// Return the ith assocated data block.
+// Return the t-th assocated data block.
 // cipher_len is the length of the ciphertext in bytes
-void get_ciphertext_block(BYTE *out, const BYTE *c, LEN cipher_len, LEN t)
-{
+void 
+get_ciphertext_block(BYTE *out, const BYTE *c, LEN cipher_len, LEN t) {
     const LEN offset = t * BLOCK_SIZE;
 
-    if (offset == cipher_len)
-    {
+    if (offset == cipher_len) {
         memset(out, 0x00, BLOCK_SIZE);
         out[0] = 0x01;
         return;
     }
     const LEN r_text = cipher_len - offset;
 
-    if (BLOCK_SIZE <= r_text)
-    {
+    if (BLOCK_SIZE <= r_text) {
         memcpy(out, c + offset, BLOCK_SIZE);
-    }
-    else
-    {
+    } else {
         if (r_text > 0) // c might be nullptr
             memcpy(out, c + offset, r_text);
         memset(out + r_text, 0x00, BLOCK_SIZE - r_text);
@@ -238,27 +220,26 @@ void get_ciphertext_block(BYTE *out, const BYTE *c, LEN cipher_len, LEN t)
 // Basic steps:
 
 // 1. Calculating the number of blocks:
-// nblocks_c, nblocks_m, nblocks_ad: Calculate the number of blocks for ciphertext, plaintext, and associated data.
+// num_of_blocks_cipher, num_of_blocks_message, num_of_blocks_adata: Calculate the number of blocks for ciphertext, plaintext, and associated data.
 
 // 2.Initializing the key and masks:
-// expanded_key: The expanded key derived from the original key k using the permutation function.
-// mask_buffer_1, mask_buffer_2, mask_buffer_3: Buffers for storing the mask_prev, mask_tmp and mask_next masks.
-// previous_mask, current_mask, next_mask: Pointers to masks for the mask_tmp and mask_prev iterations.
+// expanded_k: The expanded key derived from the original key k using the permutation function.
+// buffer_back, buffer_current, buffer_forward: Buffers for storing the mask_prev, mask_tmp and mask_next masks.
 
 // 3. Block processing cycle:
 // Performed for each block of data (encryption or authentication step).
 // Plaintext block encryption (m):
-// Calculate the mask for the mask_next message (lfsr_step).
+// Calculate the mask for the mask_next message (lfsr).
 // Perform XOR operations to obtain an encrypted block.
-// Update the authentication tag (tag_buffer) based on the ciphertext block and masks.
-// Authentication of the ciphertext block (c) and associated data block (ad):
-// Calculate the mask for the mask_next message (lfsr_step).
-// Update authentication tag (tag_buffer) based on ciphertext/plaintext block and masks.
+// Update the authentication tag (tag_buf) based on the ciphertext block and masks.
+// Authentication of the ciphertext block (c) and associated data block (aData):
+// Calculate the mask for the mask_next message (lfsr).
+// Update authentication tag (tag_buf) based on ciphertext/plaintext block and masks.
 // Mask buffer offset:
 // Update mask pointers for mask_next iteration.
 
 // 4. Calculating the final authentication tag:
-// Compute the final tag based on the extended key and tag_buffer.
+// Compute the final tag based on the extended key and tag_buf.
 
 // 5. Completion:
 // Write the encrypted data and authentication tag to the appropriate output buffers.
@@ -367,7 +348,7 @@ encrypt(
     BYTE tag[TAG_SIZE];
     implementation_of_crypto(c, tag, m, len_message, aData, len_aData, nonce, k, 1);
     memcpy(c + len_message, tag, TAG_SIZE);
-    return 0;
+    return EXIT_SUCCESS;
 }
 
 int 
@@ -380,7 +361,7 @@ decrypt(
     const unsigned char *k) {
     (void)ns;
     if (len_cipher < TAG_SIZE)
-        return -1;
+        return EXIT_FAILURE;
     *len_message = len_cipher - TAG_SIZE;
     BYTE tag[TAG_SIZE];
     implementation_of_crypto(m, tag, c, *len_message, aData, len_aData, nonce, k, 0);
@@ -411,7 +392,8 @@ hex2byte(char *hex, unsigned char *bytes) {
     }
 }
 
-int main(int argc, char *argv[]) {
+int 
+main(int argc, char *argv[]) {
     // start of measuring time
     struct timespec end, start;
     clock_gettime(CLOCK_MONOTONIC_RAW, &start);
